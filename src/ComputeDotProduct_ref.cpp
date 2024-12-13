@@ -27,6 +27,7 @@
 #endif
 #include <cassert>
 #include "ComputeDotProduct_ref.hpp"
+#include "cblas.h"
 
 /*!
   Routine to compute the dot product of two vectors where:
@@ -60,7 +61,8 @@ int ComputeDotProduct_ref(const local_int_t n, const Vector & x, const Vector & 
 #ifndef HPCG_NO_OPENMP
     #pragma omp parallel for reduction (+:local_result)
 #endif
-    for (local_int_t i=0; i<n; i++) local_result += xv[i]*yv[i];
+    local_result = cblas_ddot(n, xv, 1, yv, 1);
+    //for (local_int_t i=0; i<n; i++) local_result += xv[i]*yv[i];
   }
 
 #ifndef HPCG_NO_MPI

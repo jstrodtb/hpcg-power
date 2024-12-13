@@ -23,6 +23,8 @@
 #endif
 #include "ComputeSYMGS_ref.hpp"
 #include <cassert>
+#include <altivec.h>
+#include "pveclib/vec_f64_ppc.h"
 
 /*!
   Computes one step of symmetric Gauss-Seidel:
@@ -75,6 +77,24 @@ int ComputeSYMGS_ref( const SparseMatrix & A, const Vector & r, Vector & x) {
       local_int_t curCol = currentColIndices[j];
       sum -= currentValues[j] * xv[curCol];
     }
+
+    auto const curNNZ2 = (currentNumberOfNonzeros / 2) * 2;
+    vf64_t sum_v = {0.0d, 0.0d};
+
+    for (int j = 0; j< curNNZ2; j += 2) 
+    {
+      const long long curCol0 = currentColIndices[j];
+      const long long curCol1 = currentColIndices[j+1];
+
+      vf64_t xv_v = vec_vglfdso(xv, curCol0, curCol1);
+      vf64_t * const cv = static_cast<vf64_t * const>(&currentValues[j]);
+
+      sum_v -= (*cv) * xv_v;
+
+//      sum -= currentValues[j] * xv[curCol];
+    }
+
+
     sum += xv[i]*currentDiagonal; // Remove diagonal contribution from previous loop
 
     xv[i] = sum/currentDiagonal;

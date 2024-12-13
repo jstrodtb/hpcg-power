@@ -63,6 +63,7 @@ int ComputeWAXPBY_ref(const local_int_t n, const double alpha, const Vector & x,
 #ifndef HPCG_NO_OPENMP
     #pragma omp parallel for
 #endif
+
     for (local_int_t i=0; i<n; i++) wv[i] = alpha * xv[i] + beta * yv[i];
   }
 
