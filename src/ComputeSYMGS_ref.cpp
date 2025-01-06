@@ -33,9 +33,9 @@ extern "C"{
       double ** matrixDiagonal,  // An array of pointers to the diagonal entries A.matrixValues
       const double * const rv,
       double * const xv,
-      const double ** const matrixValues,
-      const local_int_t ** const mtxIndL,
-      const int * nonzerosInRow);
+      double ** const matrixValues,
+      local_int_t ** const mtxIndL,
+      char * nonzerosInRow);
 #ifdef __cplusplus
 }
 #endif
@@ -80,6 +80,16 @@ int ComputeSYMGS_ref( const SparseMatrix & A, const Vector & r, Vector & x) {
   const double * const rv = r.values;
   double * const xv = x.values;
 
+  ComputeSYMGS_ref_c( 
+      nrow,
+      matrixDiagonal,
+      rv,
+      xv,
+      A.matrixValues,
+      A.mtxIndL,
+      A.nonzerosInRow);
+
+  /*
   for (local_int_t i=0; i< nrow; i++) {
     const double * const currentValues = A.matrixValues[i];
     const local_int_t * const currentColIndices = A.mtxIndL[i];
@@ -96,6 +106,7 @@ int ComputeSYMGS_ref( const SparseMatrix & A, const Vector & r, Vector & x) {
     xv[i] = sum/currentDiagonal;
 
   }
+  */
 
   // Now the back sweep.
 

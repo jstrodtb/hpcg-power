@@ -44,15 +44,14 @@
 */
 int ComputeSYMGS_ref_c( 
     const local_int_t nrow,
-    double ** matrixDiagonal,  // An array of pointers to the diagonal entries A.matrixValues
-    const double * const rv,
-    double * const xv,
-    const double ** const matrixValues,
-    const local_int_t ** const mtxIndL,
-    const int * nonzerosInRow)
+    double ** restrict matrixDiagonal,  // An array of pointers to the diagonal entries A.matrixValues
+    const double * const restrict rv,
+    double * const restrict xv,
+    double ** const restrict matrixValues,
+    local_int_t ** const restrict mtxIndL,
+    char * restrict nonzerosInRow)
 {
-
-
+  
   for (local_int_t i=0; i< nrow; i++) {
     const double * const currentValues = matrixValues[i];
     const local_int_t * const currentColIndices = mtxIndL[i];
@@ -60,12 +59,63 @@ int ComputeSYMGS_ref_c(
     const double  currentDiagonal = matrixDiagonal[i][0]; // Current diagonal value
     double sum = rv[i]; // RHS value
 
+
+    int curNNZ2 = currentNumberOfNonzeros - (currentNumberOfNonzeros % 2);
+
+    vf64_t sum_v = {0.0, 0.0};
+
+    for (int j=0; j< curNNZ2; j+= 2) {
+      const local_int_t * const curCol = &currentColIndices[j];
+      //sum -= currentValues[j] * xv[curCol];
+      
+      sum_v[0] -= currentValues[j] * xv[curCol[0]];
+      sum_v[1] -= currentValues[j+1] * xv[curCol[1]];
+    }
+
+    sum += sum_v[0] + sum_v[1];
+
+    for (int j = curNNZ2; j < currentNumberOfNonzeros; j++) {
+      local_int_t curCol = currentColIndices[j];
+      sum -= currentValues[j] * xv[curCol];
+    }
+ 
+    sum += xv[i]*currentDiagonal; // Remove diagonal contribution from previous loop
+
+    xv[i] = sum/currentDiagonal;
+
+  }
+
+
+  // Now the back sweep.
+
+  for (local_int_t i=nrow-1; i>=0; i--) {
+    const double * const currentValues = matrixValues[i];
+    const local_int_t * const currentColIndices = mtxIndL[i];
+    const int currentNumberOfNonzeros = nonzerosInRow[i];
+    const double  currentDiagonal = matrixDiagonal[i][0]; // Current diagonal value
+    double sum = rv[i]; // RHS value
+
+    for (int j = 0; j< currentNumberOfNonzeros; j++) {
+      local_int_t curCol = currentColIndices[j];
+      sum -= currentValues[j]*xv[curCol];
+    }
+    sum += xv[i]*currentDiagonal; // Remove diagonal contribution from previous loop
+
+    xv[i] = sum/currentDiagonal;
+  }
+
     /*
+    for (local_int_t i=0; i< nrow; i++) {
+    const double * const currentValues = matrixValues[i];
+    const local_int_t * const currentColIndices = mtxIndL[i];
+    const int currentNumberOfNonzeros = nonzerosInRow[i];
+    const double  currentDiagonal = matrixDiagonal[i][0]; // Current diagonal value
+    double sum = rv[i]; // RHS value
+
     for (int j=0; j< currentNumberOfNonzeros; j++) {
       local_int_t curCol = currentColIndices[j];
       sum -= currentValues[j] * xv[curCol];
     }
-  */
 
     int const curNNZ2 = (currentNumberOfNonzeros / 2) * 2;
     vf64_t sum_v = {0.0, 0.0};
@@ -90,29 +140,7 @@ int ComputeSYMGS_ref_c(
     sum += xv[i]*currentDiagonal + sum_v[0] + sum_v[1]; // Remove diagonal contribution from previous loop
 
     xv[i] = sum/currentDiagonal;
-
-  }
-
-#if 1
-
-  // Now the back sweep.
-
-  for (local_int_t i=nrow-1; i>=0; i--) {
-    const double * const currentValues = matrixValues[i];
-    const local_int_t * const currentColIndices = mtxIndL[i];
-    const int currentNumberOfNonzeros = nonzerosInRow[i];
-    const double  currentDiagonal = matrixDiagonal[i][0]; // Current diagonal value
-    double sum = rv[i]; // RHS value
-
-    for (int j = 0; j< currentNumberOfNonzeros; j++) {
-      local_int_t curCol = currentColIndices[j];
-      sum -= currentValues[j]*xv[curCol];
-    }
-    sum += xv[i]*currentDiagonal; // Remove diagonal contribution from previous loop
-
-    xv[i] = sum/currentDiagonal;
-  }
-#endif
+    */
 
   return 0;
 }
