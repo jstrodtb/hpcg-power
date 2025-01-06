@@ -18,27 +18,9 @@
  HPCG routine
  */
 
-#ifndef HPCG_NO_MPI
-#include "ExchangeHalo.hpp"
-#endif
-#include "ComputeSYMGS_ref.hpp"
-#include <cassert>
-
-
-#ifdef __cplusplus
-extern "C"{
-#endif
-  int ComputeSYMGS_ref_c( 
-      const local_int_t nrow,
-      double ** matrixDiagonal,  // An array of pointers to the diagonal entries A.matrixValues
-      const double * const rv,
-      double * const xv,
-      const double ** const matrixValues,
-      const local_int_t ** const mtxIndL,
-      const int * nonzerosInRow);
-#ifdef __cplusplus
-}
-#endif
+#include "local_int_t.h"
+#include <altivec.h>
+#include "pveclib/vec_f64_ppc.h"
 
 /*!
   Computes one step of symmetric Gauss-Seidel:
@@ -56,53 +38,69 @@ extern "C"{
   - We then perform one back sweep.
   - For simplicity we include the diagonal contribution in the for-j loop, then correct the sum after
 
-  @param[in] A the known system matrix
-  @param[in] r the input vector
-  @param[inout] x On entry, x should contain relevant values, on exit x contains the result of one symmetric GS sweep with r as the RHS.
-
-
-  @warning Early versions of this kernel (Version 1.1 and earlier) had the r and x arguments in reverse order, and out of sync with other kernels.
-
   @return returns 0 upon success and non-zero otherwise
 
   @see ComputeSYMGS
 */
-int ComputeSYMGS_ref( const SparseMatrix & A, const Vector & r, Vector & x) {
+int ComputeSYMGS_ref_c( 
+    const local_int_t nrow,
+    double ** matrixDiagonal,  // An array of pointers to the diagonal entries A.matrixValues
+    const double * const rv,
+    double * const xv,
+    const double ** const matrixValues,
+    const local_int_t ** const mtxIndL,
+    const int * nonzerosInRow)
+{
 
-  assert(x.localLength==A.localNumberOfColumns); // Make sure x contain space for halo values
-
-#ifndef HPCG_NO_MPI
-  ExchangeHalo(A,x);
-#endif
-
-  const local_int_t nrow = A.localNumberOfRows;
-  double ** matrixDiagonal = A.matrixDiagonal;  // An array of pointers to the diagonal entries A.matrixValues
-  const double * const rv = r.values;
-  double * const xv = x.values;
 
   for (local_int_t i=0; i< nrow; i++) {
-    const double * const currentValues = A.matrixValues[i];
-    const local_int_t * const currentColIndices = A.mtxIndL[i];
-    const int currentNumberOfNonzeros = A.nonzerosInRow[i];
+    const double * const currentValues = matrixValues[i];
+    const local_int_t * const currentColIndices = mtxIndL[i];
+    const int currentNumberOfNonzeros = nonzerosInRow[i];
     const double  currentDiagonal = matrixDiagonal[i][0]; // Current diagonal value
     double sum = rv[i]; // RHS value
 
+    /*
     for (int j=0; j< currentNumberOfNonzeros; j++) {
       local_int_t curCol = currentColIndices[j];
       sum -= currentValues[j] * xv[curCol];
     }
-    sum += xv[i]*currentDiagonal; // Remove diagonal contribution from previous loop
+  */
+
+    int const curNNZ2 = (currentNumberOfNonzeros / 2) * 2;
+    vf64_t sum_v = {0.0, 0.0};
+
+    for (int j = 0; j< curNNZ2; j += 2) 
+    {
+      const long long curCol0 = currentColIndices[j];
+      const long long curCol1 = currentColIndices[j+1];
+
+      vf64_t xv_v = vec_vglfdso(xv, curCol0, curCol1);
+      vf64_t * const cv = (vf64_t * const)(&currentValues[j]);
+
+      sum_v -= (*cv) * xv_v;
+    }
+
+    for (int j = curNNZ2; j < currentNumberOfNonzeros; ++j) 
+    {
+      local_int_t curCol = currentColIndices[j];
+      sum -= currentValues[j] * xv[curCol];
+    }
+
+    sum += xv[i]*currentDiagonal + sum_v[0] + sum_v[1]; // Remove diagonal contribution from previous loop
 
     xv[i] = sum/currentDiagonal;
 
   }
 
+#if 1
+
   // Now the back sweep.
 
   for (local_int_t i=nrow-1; i>=0; i--) {
-    const double * const currentValues = A.matrixValues[i];
-    const local_int_t * const currentColIndices = A.mtxIndL[i];
-    const int currentNumberOfNonzeros = A.nonzerosInRow[i];
+    const double * const currentValues = matrixValues[i];
+    const local_int_t * const currentColIndices = mtxIndL[i];
+    const int currentNumberOfNonzeros = nonzerosInRow[i];
     const double  currentDiagonal = matrixDiagonal[i][0]; // Current diagonal value
     double sum = rv[i]; // RHS value
 
@@ -114,6 +112,7 @@ int ComputeSYMGS_ref( const SparseMatrix & A, const Vector & r, Vector & x) {
 
     xv[i] = sum/currentDiagonal;
   }
+#endif
 
   return 0;
 }

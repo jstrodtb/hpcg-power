@@ -20,13 +20,15 @@
 
 #ifndef GEOMETRY_HPP
 #define GEOMETRY_HPP
+#include "local_int_t.h"
 
 /*!
   This defines the type for integers that have local subdomain dimension.
 
   Define as "long long" when local problem dimension is > 2^31
 */
-typedef int local_int_t;
+//typedef int local_int_t;
+
 //typedef long long local_int_t;
 
 /*!
