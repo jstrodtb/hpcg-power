@@ -21,6 +21,9 @@
 #include "local_int_t.h"
 #include <altivec.h>
 #include "pveclib/vec_f64_ppc.h"
+#include <stdio.h>
+#include <stdlib.h>
+#include <mpi.h>
 
 /*!
   Computes one step of symmetric Gauss-Seidel:
@@ -67,9 +70,24 @@ int ComputeSYMGS_ref_c(
     for (int j=0; j< curNNZ2; j+= 2) {
       const local_int_t * const curCol = &currentColIndices[j];
       //sum -= currentValues[j] * xv[curCol];
-      
-      sum_v[0] -= currentValues[j] * xv[curCol[0]];
-      sum_v[1] -= currentValues[j+1] * xv[curCol[1]];
+      //const long long curCol0 = curCol[0];
+      //const long long curCol1 = curCol[1];
+
+      vf64_t xv_v = vec_vglfdso(xv, curCol[0]*sizeof(double), curCol[1]*sizeof(double));
+//      int rank;
+//      MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+//      if(rank == 0 && j == 0)
+//        printf("%f %f %f %f \n", xv_v[0], xv_v[1], xv[curCol[0]], xv[curCol[1]]);
+
+//      exit(0);
+//      sum_v[0] -= currentValues[j] * xv[curCol[0]];
+//      sum_v[1] -= currentValues[j+1] * xv[curCol[1]];
+      vf64_t * const cv = (vf64_t * const)(&currentValues[j]);
+
+      sum_v -= (*cv) * xv_v;
+ 
+      //sum_v[0] -= currentValues[j] * xv_v[0]; //xv[curCol[0]];
+      //sum_v[1] -= currentValues[j+1] * xv_v[1]; //xv[curCol[1]];
     }
 
     sum += sum_v[0] + sum_v[1];
