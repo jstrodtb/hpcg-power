@@ -110,6 +110,7 @@ int ComputeSYMGS_ref( const SparseMatrix & A, const Vector & r, Vector & x) {
 
   // Now the back sweep.
 
+  /*
   for (local_int_t i=nrow-1; i>=0; i--) {
     const double * const currentValues = A.matrixValues[i];
     const local_int_t * const currentColIndices = A.mtxIndL[i];
@@ -125,6 +126,7 @@ int ComputeSYMGS_ref( const SparseMatrix & A, const Vector & r, Vector & x) {
 
     xv[i] = sum/currentDiagonal;
   }
+  */
 
   return 0;
 }
