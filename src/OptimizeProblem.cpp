@@ -1,3 +1,8 @@
+#include <vector>
+#include <algorithm>
+#include <iostream>
+#include <queue>
+
 
 //@HEADER
 // ***************************************************
@@ -19,6 +24,58 @@
  */
 
 #include "OptimizeProblem.hpp"
+
+
+std::vector<int> reverseCuthillMcKee(int n, const char *nonzerosInRow, local_int_t **mtxIndL ) {
+  std::vector<int> degree(n, 0);
+  std::vector<std::vector<int>> adj(n);
+    
+    // Build adjacency list and compute degrees
+    for (int i = 0; i < n; i++) {
+        for (int j = 0; j < nonzerosInRow[i]; ++j) {
+            int neighbor = mtxIndL[i][j];
+            adj[i].push_back(neighbor);
+            degree[i]++;
+        }
+    }
+    
+    std::vector<int> rcm_order;
+    std::vector<bool> visited(n, false);
+    
+    // Find starting node (minimum degree)
+    int start = std::min_element(degree.begin(), degree.end()) - degree.begin();
+    
+    std::queue<int> q;
+    q.push(start);
+    visited[start] = true;
+    
+    // Perform BFS
+    while (!q.empty()) {
+        int node = q.front();
+        q.pop();
+        rcm_order.push_back(node);
+        
+        // Sort neighbors by increasing degree before pushing them to the queue
+        std::vector<int> neighbors;
+        for (int neighbor : adj[node]) {
+            if (!visited[neighbor]) {
+                neighbors.push_back(neighbor);
+            }
+        }
+        sort(neighbors.begin(), neighbors.end(), [&](int a, int b) { return degree[a] < degree[b]; });
+        
+        for (int neighbor : neighbors) {
+            q.push(neighbor);
+            visited[neighbor] = true;
+        }
+    }
+    
+    // Reverse the order for Reverse Cuthill-McKee
+    reverse(rcm_order.begin(), rcm_order.end());
+    return rcm_order;
+}
+
+
 /*!
   Optimizes the data structures used for CG iteration to increase the
   performance of the benchmark version of the preconditioned CG algorithm.
@@ -35,6 +92,8 @@
   @see GenerateProblem
 */
 int OptimizeProblem(SparseMatrix & A, CGData & data, Vector & b, Vector & x, Vector & xexact) {
+
+  auto rcm_order = reverseCuthillMcKee(A.localNumberOfRows, A.nonzerosInRow, A.mtxIndL); 
 
   // This function can be used to completely transform any part of the data structures.
   // Right now it does nothing, so compiling with a check for unused variables results in complaints
