@@ -34,6 +34,7 @@ HPCG_DEPS = src/CG.o \
 	    src/ComputeSPMV_ref.o \
 	    src/ComputeSYMGS.o \
 	    src/ComputeSYMGS_ref.o \
+	    src/ComputeSYMGS_ref_c.o \
 	    src/ComputeWAXPBY.o \
 	    src/ComputeWAXPBY_ref.o \
 	    src/ComputeMG_ref.o \
@@ -152,6 +153,9 @@ src/ComputeSYMGS.o: ./src/ComputeSYMGS.cpp ./src/ComputeSYMGS.hpp $(PRIMARY_HEAD
 
 src/ComputeSYMGS_ref.o: ./src/ComputeSYMGS_ref.cpp ./src/ComputeSYMGS_ref.hpp $(PRIMARY_HEADERS)
 	$(CXX) -c $(CXXFLAGS) -I./src $< -o $@
+
+src/ComputeSYMGS_ref_c.o: ./src/ComputeSYMGS_ref.cpp ./src/ComputeSYMGS_ref.hpp $(PRIMARY_HEADERS)
+	$(CC) -c $(CXXFLAGS) -I./src $< -o $@
 
 src/ComputeWAXPBY.o: ./src/ComputeWAXPBY.cpp ./src/ComputeWAXPBY.hpp $(PRIMARY_HEADERS)
 	$(CXX) -c $(CXXFLAGS) -I./src $< -o $@
