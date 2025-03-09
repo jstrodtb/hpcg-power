@@ -97,26 +97,59 @@ std::vector<local_int_t> reverseCuthillMcKee(local_int_t n, const char *nonzeros
 */
 int OptimizeProblem(SparseMatrix & A, CGData & data, Vector & b, Vector & x, Vector & xexact) {
 
-#if 0
+#if 1
   auto rcm_order = reverseCuthillMcKee(A.localNumberOfRows, A.nonzerosInRow, A.mtxIndL); 
 
   std::vector<local_int_t> storedAt(A.localNumberOfRows);
 
   std::iota(storedAt.begin(), storedAt.end(), 0); 
 
+  /*
+   * Let's say my mapping is 3, 0, 1, 2 --> the ith entry tells where we pull from in the old matrix
+   * storedAt = 0 1 2 3
+   * values 0.0 0.1 0.2 0.3
+   *
+   * Want to end up with 0.3 0.0 0.1 0.2 
+   * Iterations:
+   * 0: values   = 0.3 0.1 0.2 0.0  <-- iNew = 0, iOld = iStored = 3, storedAt[0] = 3
+   *    storedAt = 3    1   2  -1   <-- iNew = 1, iOld = 0, iStored = storedAt[0] = 3, storedAt[1] = iStored = 3
+   *
+   * 1: values   = 0.3 0.0 0.2 0.1
+   *    storedAt = -1   3   2  -1
+   *
+   * 2: valued   = 0.3 0.0 0.1 0.2
+   *    storedAt = -1  -1  3   -1 
+   * Updated 0: 
+   */
+
+  auto rcm_order_rev = rcm_order;
+  for(int i = 0; i < rcm_order_rev.size(); ++i)
+    rcm_order_rev[rcm_order[i]] = i;
 
   
-  for (local_int_t i=0; i< A.localNumberOfRows; i++) {
-    local_int_t iNew = rcm_order[i]; //our new index
+  for (local_int_t iNew=0; iNew< A.localNumberOfRows; iNew++) {
+    // Data from iOld = rcm_order[i] gets mapped to i
+    // Data stored at i may have moved to storedAt[i]
+    // So take the data from storedAt[i] and move it to rcm_order[i], update storedAt[i]
+    
+    auto iOld = rcm_order[i]; //Pulling data belonging to this
+    auto iStored = storedAt[iOld]; //but it's stored here
+    storedAt[iNew] = iStored; //pushing our data here
 
-    auto ii = storedAt[i]; //May have swapped already, so this is where we will read
 
-    storedAt[iNew] = ii; //swapping stuff to here
+    std::swap(A.matrixValues[iStored], A.matrixValues[iNew]); //matrix values won't change
+    std::swap(A.mtxIndL[iStored], A.mtxIndL[iNew]); //need update this
+    std::swap(A.nonzerosInRow[iStored], A.nonzerosInRow[iNew]); 
+    // std::swap(A.matrixDiagonal[ii], A.matrixDiagonal[iNew]); //matrixDiagonal points to spot in a matrixValues array
 
-    std::swap(A.matrixValues[ii], A.matrixValues[iNew]); //matrix values won't change
-    std::swap(A.mtxIndL[ii], A.mtxIndL[iNew]); //need update this
-    std::swap(A.nonzerosInRow[ii], A.nonzerosInRow[iNew]); 
-    std::swap(A.matrixDiagonal[ii], A.matrixDiagonal[iNew]); //this is usually pointing to A.matrixValues
+    for(int j=0; j<A.nonzerosInRow[iNew]){
+      if (A.mtxIndL[j] < A.localNumberOfRows) //not renumbering halos (although we probably should)
+        A.mtxIndL[j] = rcm_order_rev[A.mtxIndL[j]];
+    }
+  }
+
+  for(local_int_t i=0; i<A.totalToBeSent; ++i){
+    A.elementsToSend[i] = rcm_order_rev[A.elementsToSend[i]];
   }
 #endif
 
