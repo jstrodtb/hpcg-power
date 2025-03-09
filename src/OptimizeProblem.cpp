@@ -1,3 +1,9 @@
+#include <vector>
+#include <algorithm>
+#include <iostream>
+#include <queue>
+#include <numeric>
+
 
 //@HEADER
 // ***************************************************
@@ -19,6 +25,61 @@
  */
 
 #include "OptimizeProblem.hpp"
+
+
+std::vector<local_int_t> reverseCuthillMcKee(local_int_t n, const char *nonzerosInRow, local_int_t **mtxIndL ) {
+  std::vector<local_int_t> degree(n, 0);
+  std::vector<std::vector<local_int_t>> adj(n);
+    
+    // Build adjacency list and compute degrees
+    for (local_int_t i = 0; i < n; i++) {
+        for (local_int_t j = 0; j < nonzerosInRow[i]; ++j) {
+            local_int_t neighbor = mtxIndL[i][j];
+            if (neighbor < n) //we don't want to reorder halo cells
+            {
+              adj[i].push_back(neighbor);
+              degree[i]++;
+            }
+        }
+    }
+    
+    std::vector<local_int_t> rcm_order;
+    std::vector<bool> visited(n, false);
+    
+    // Find starting node (minimum degree)
+    local_int_t start = std::min_element(degree.begin(), degree.end()) - degree.begin();
+    
+    std::queue<local_int_t> q;
+    q.push(start);
+    visited[start] = true;
+    
+    // Perform BFS
+    while (!q.empty()) {
+        local_int_t node = q.front();
+        q.pop();
+        rcm_order.push_back(node);
+        
+        // Sort neighbors by increasing degree before pushing them to the queue
+        std::vector<local_int_t> neighbors;
+        for (local_int_t neighbor : adj[node]) {
+            if (!visited[neighbor]) {
+                neighbors.push_back(neighbor);
+            }
+        }
+        sort(neighbors.begin(), neighbors.end(), [&](local_int_t a, local_int_t b) { return degree[a] < degree[b]; });
+        
+        for (local_int_t neighbor : neighbors) {
+            q.push(neighbor);
+            visited[neighbor] = true;
+        }
+    }
+    
+    // Reverse the order for Reverse Cuthill-McKee
+    reverse(rcm_order.begin(), rcm_order.end());
+    return rcm_order;
+}
+
+
 /*!
   Optimizes the data structures used for CG iteration to increase the
   performance of the benchmark version of the preconditioned CG algorithm.
@@ -35,6 +96,31 @@
   @see GenerateProblem
 */
 int OptimizeProblem(SparseMatrix & A, CGData & data, Vector & b, Vector & x, Vector & xexact) {
+
+#if 0
+  auto rcm_order = reverseCuthillMcKee(A.localNumberOfRows, A.nonzerosInRow, A.mtxIndL); 
+
+  std::vector<local_int_t> storedAt(A.localNumberOfRows);
+
+  std::iota(storedAt.begin(), storedAt.end(), 0); 
+
+
+  
+  for (local_int_t i=0; i< A.localNumberOfRows; i++) {
+    local_int_t iNew = rcm_order[i]; //our new index
+
+    auto ii = storedAt[i]; //May have swapped already, so this is where we will read
+
+    storedAt[iNew] = ii; //swapping stuff to here
+
+    std::swap(A.matrixValues[ii], A.matrixValues[iNew]); //matrix values won't change
+    std::swap(A.mtxIndL[ii], A.mtxIndL[iNew]); //need update this
+    std::swap(A.nonzerosInRow[ii], A.nonzerosInRow[iNew]); 
+    std::swap(A.matrixDiagonal[ii], A.matrixDiagonal[iNew]); //this is usually pointing to A.matrixValues
+  }
+#endif
+
+  
 
   // This function can be used to completely transform any part of the data structures.
   // Right now it does nothing, so compiling with a check for unused variables results in complaints
