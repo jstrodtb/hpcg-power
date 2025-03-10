@@ -63,14 +63,14 @@ int ComputeSYMGS_ref_c(
   
   for (local_int_t k=0; k<(nrow/BLOCK); k += BLOCK) 
   {
-    for(local_int_t i = 0; i < BLOCK/16; ++i)
-    {
-      __builtin_prefetch(&rv[k + i*16], 0, 1);
-      __builtin_prefetch(&xv[k + i*16], 1, 1);
-      __builtin_prefetch(&nonzerosInRow[k + i*16], 0, 1);
-      __builtin_prefetch(&matrixValues[k + i*16], 0, 1);
-      __builtin_prefetch(&mtxIndL[k + i*16], 0, 1);
-    }
+//    for(local_int_t i = 0; i < BLOCK/16; ++i)
+//    {
+//      __builtin_prefetch(&rv[k + i*16], 0, 1);
+//      __builtin_prefetch(&xv[k + i*16], 1, 1);
+//      __builtin_prefetch(&nonzerosInRow[k + i*16], 0, 1);
+//      __builtin_prefetch(&matrixValues[k + i*16], 0, 1);
+//      __builtin_prefetch(&mtxIndL[k + i*16], 0, 1);
+//    }
 
     for (local_int_t i=k; i< k+BLOCK; i++) 
     {
