@@ -25,6 +25,12 @@
 #include <stdlib.h>
 #include <mpi.h>
 
+int min(int a, int b) {
+    return (a < b) ? a : b;
+}
+
+#define BLOCK 128 
+
 /*!
   Computes one step of symmetric Gauss-Seidel:
 
@@ -54,8 +60,54 @@ int ComputeSYMGS_ref_c(
     local_int_t ** const restrict mtxIndL,
     char * restrict nonzerosInRow)
 {
-  
-  for (local_int_t i=0; i< nrow; i++) {
+  local_int_t k;
+  for (k=0; k<(nrow/BLOCK)*BLOCK; k += BLOCK) 
+  {
+//    for(local_int_t i = 0; i < BLOCK/16; ++i)
+//    {
+//      __builtin_prefetch(&rv[k + i*16], 0, 1);
+//      __builtin_prefetch(&xv[k + i*16], 1, 1);
+//      __builtin_prefetch(&nonzerosInRow[k + i*16], 0, 1);
+//      __builtin_prefetch(&matrixValues[k + i*16], 0, 1);
+//      __builtin_prefetch(&mtxIndL[k + i*16], 0, 1);
+//    }
+
+    for (local_int_t i=k; i< k+BLOCK; i++) 
+    {
+      const double * const currentValues = matrixValues[i];
+      const local_int_t * const currentColIndices = mtxIndL[i];
+      const int currentNumberOfNonzeros = nonzerosInRow[i];
+      const double  currentDiagonal = matrixDiagonal[i][0]; // Current diagonal value
+      //double sum = rv[i]; // RHS value
+
+
+      int curNNZ2 = currentNumberOfNonzeros - (currentNumberOfNonzeros % 2);
+
+      //vf64_t sum_v = {0.0, 0.0};
+      vf64_t sum_v = {rv[i], xv[i]*currentDiagonal};
+
+      for (int j=0; j< curNNZ2; j+= 2) {
+        const local_int_t * const curCol = &currentColIndices[j];
+
+        vf64_t xv_v = vec_vglfdso(xv, curCol[0]*sizeof(double), curCol[1]*sizeof(double));
+        vf64_t * const cv = (vf64_t * const)(&currentValues[j]);
+
+        sum_v -= (*cv) * xv_v;
+      }
+
+      //sum += sum_v[0] + sum_v[1];
+
+      if (curNNZ2 != currentNumberOfNonzeros)
+        sum_v[0] -= currentValues[curNNZ2] * xv[currentColIndices[curNNZ2]];
+
+      //sum += xv[i]*currentDiagonal; // Remove diagonal contribution from previous loop
+
+      xv[i] = (sum_v[0] + sum_v[1])/currentDiagonal;
+    }
+  }
+
+  for (local_int_t i=k; i<nrow; ++i) 
+  {
     const double * const currentValues = matrixValues[i];
     const local_int_t * const currentColIndices = mtxIndL[i];
     const int currentNumberOfNonzeros = nonzerosInRow[i];
@@ -69,38 +121,21 @@ int ComputeSYMGS_ref_c(
 
     for (int j=0; j< curNNZ2; j+= 2) {
       const local_int_t * const curCol = &currentColIndices[j];
-      //sum -= currentValues[j] * xv[curCol];
-      //const long long curCol0 = curCol[0];
-      //const long long curCol1 = curCol[1];
 
       vf64_t xv_v = vec_vglfdso(xv, curCol[0]*sizeof(double), curCol[1]*sizeof(double));
-//      int rank;
-//      MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-//      if(rank == 0 && j == 0)
-//        printf("%f %f %f %f \n", xv_v[0], xv_v[1], xv[curCol[0]], xv[curCol[1]]);
-
-//      exit(0);
-//      sum_v[0] -= currentValues[j] * xv[curCol[0]];
-//      sum_v[1] -= currentValues[j+1] * xv[curCol[1]];
       vf64_t * const cv = (vf64_t * const)(&currentValues[j]);
 
       sum_v -= (*cv) * xv_v;
- 
-      //sum_v[0] -= currentValues[j] * xv_v[0]; //xv[curCol[0]];
-      //sum_v[1] -= currentValues[j+1] * xv_v[1]; //xv[curCol[1]];
     }
 
     sum += sum_v[0] + sum_v[1];
 
-    for (int j = curNNZ2; j < currentNumberOfNonzeros; j++) {
-      local_int_t curCol = currentColIndices[j];
-      sum -= currentValues[j] * xv[curCol];
-    }
- 
+    if (curNNZ2 != currentNumberOfNonzeros)
+      sum -= currentValues[curNNZ2] * xv[currentColIndices[curNNZ2]];
+
     sum += xv[i]*currentDiagonal; // Remove diagonal contribution from previous loop
 
     xv[i] = sum/currentDiagonal;
-
   }
 
 
@@ -122,44 +157,7 @@ int ComputeSYMGS_ref_c(
     xv[i] = sum/currentDiagonal;
   }
 
-    /*
-    for (local_int_t i=0; i< nrow; i++) {
-    const double * const currentValues = matrixValues[i];
-    const local_int_t * const currentColIndices = mtxIndL[i];
-    const int currentNumberOfNonzeros = nonzerosInRow[i];
-    const double  currentDiagonal = matrixDiagonal[i][0]; // Current diagonal value
-    double sum = rv[i]; // RHS value
-
-    for (int j=0; j< currentNumberOfNonzeros; j++) {
-      local_int_t curCol = currentColIndices[j];
-      sum -= currentValues[j] * xv[curCol];
-    }
-
-    int const curNNZ2 = (currentNumberOfNonzeros / 2) * 2;
-    vf64_t sum_v = {0.0, 0.0};
-
-    for (int j = 0; j< curNNZ2; j += 2) 
-    {
-      const long long curCol0 = currentColIndices[j];
-      const long long curCol1 = currentColIndices[j+1];
-
-      vf64_t xv_v = vec_vglfdso(xv, curCol0, curCol1);
-      vf64_t * const cv = (vf64_t * const)(&currentValues[j]);
-
-      sum_v -= (*cv) * xv_v;
-    }
-
-    for (int j = curNNZ2; j < currentNumberOfNonzeros; ++j) 
-    {
-      local_int_t curCol = currentColIndices[j];
-      sum -= currentValues[j] * xv[curCol];
-    }
-
-    sum += xv[i]*currentDiagonal + sum_v[0] + sum_v[1]; // Remove diagonal contribution from previous loop
-
-    xv[i] = sum/currentDiagonal;
-    */
-
+    
   return 0;
 }
 
