@@ -60,8 +60,8 @@ int ComputeSYMGS_ref_c(
     local_int_t ** const restrict mtxIndL,
     char * restrict nonzerosInRow)
 {
-  
-  for (local_int_t k=0; k<(nrow/BLOCK); k += BLOCK) 
+  local_int_t k;
+  for (k=0; k<(nrow/BLOCK)*BLOCK; k += BLOCK) 
   {
 //    for(local_int_t i = 0; i < BLOCK/16; ++i)
 //    {
@@ -106,7 +106,7 @@ int ComputeSYMGS_ref_c(
     }
   }
 
-  for (local_int_t i=(nrow/BLOCK)*BLOCK; i<nrow; ++i) 
+  for (local_int_t i=k; i<nrow; ++i) 
   {
     const double * const currentValues = matrixValues[i];
     const local_int_t * const currentColIndices = mtxIndL[i];
